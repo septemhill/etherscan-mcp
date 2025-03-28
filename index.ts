@@ -151,6 +151,44 @@ const getTokenBalance: ToolDefinition = {
     },
 };
 
+const getTokenHolders: ToolDefinition = {
+    name: "get_token_holders",
+    description: "Get the token holders for a given token address",
+    inputSchema: {
+        type: "object",
+        properties: {
+            chain_id: {
+                type: "integer",
+                description: "The chain ID",
+            },
+            token_address: {
+                type: "string",
+                description: "The address of the token",
+            },
+        },
+        required: ["chain_id", "token_address"],
+    },
+};
+
+const getTokenHoldersCount: ToolDefinition = {
+    name: "get_token_holders_count",
+    description: "Get the number of token holders for a given token address",
+    inputSchema: {
+        type: "object",
+        properties: {
+            chain_id: {
+                type: "integer",
+                description: "The chain ID",
+            },
+            token_address: {
+                type: "string",
+                description: "The address of the token",
+            },
+        },
+        required: ["chain_id", "token_address"],
+    },
+};
+
 const getFilteredRpcList: ToolDefinition = {
     name: "get_filtered_rpc_list",
     description: "Get a filtered list of RPC endpoints for a given chain ID",
@@ -174,63 +212,15 @@ const getFilteredRpcList: ToolDefinition = {
     }
 };
 
-async function handleGetTokenBalance(req: any, apiKey: string) {
-    const chainId = req.params.arguments.chain_id;
-    const tokenAddress = req.params.arguments.token_address;
-    const address = req.params.arguments.address;
-
-    try {
-        const response = await axios.get(
-            `https://api.etherscan.io/v2/api?chainid=${chainId}&module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${address}&tag=latest&apikey=${apiKey}`
-        );
-
-        if (response.data.status === "1") {
-            const balance = response.data.result;
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Balance of token ${tokenAddress} for address ${address} on chain ${chainId}: ${balance}`,
-                    },
-                ],
-            };
-        } else {
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Failed to get token balance: ${response.data.message}`,
-                    },
-                ],
-            };
-        }
-    } catch (error) {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `Failed to get token balance: ${error}`,
-                },
-            ],
-        };
-    }
-}
 
 const toolDefinitions: { [key: string]: ToolDefinition } = {
     [getFilteredRpcList.name]: getFilteredRpcList,
     [getChainId.name]: getChainId,
     [getTotalSupply.name]: getTotalSupply,
-    [getTokenBalance.name]: getTokenBalance
+    [getTokenBalance.name]: getTokenBalance,
+    [getTokenHolders.name]: getTokenHolders,
+    [getTokenHoldersCount.name]: getTokenHoldersCount
 };
-
-const server = new Server({
-    name: "etherscan-mcp",
-    version: "1.0.0"
-}, {
-    capabilities: {
-        tools: toolDefinitions,
-    }
-});
 
 async function handleGetFilteredRpcList(req: any) {
     const chainId = req.params.arguments.chain_id;
@@ -314,31 +304,132 @@ async function handleGetChainId(req: any) {
     }
 }
 
-const callToolHandler: HandlerDefinition = {
-    handler: async (req: any) => {
-        const apiKey = process.env.ETHERSCAN_API_KEY
-        switch (req.params.name) {
-            case getFilteredRpcList.name:
-                return await handleGetFilteredRpcList(req);
-            case getChainId.name:
-                return await handleGetChainId(req);
-            case getTotalSupply.name:
-                return await handleGetTotalSupply(req, apiKey);
-            case getTokenBalance.name:
-                return await handleGetTokenBalance(req, apiKey);
-            default:
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `Tool ${req.params.name} not found.`,
-                        },
-                    ],
-                    isError: true,
-                };
+async function handleGetTokenHolders(req: any, apiKey: string) {
+    const chainId = req.params.arguments.chain_id;
+    const tokenAddress = req.params.arguments.token_address;
+
+    try {
+        const response = await axios.get(
+            `https://api.etherscan.io/v2/api?chainid=${chainId}&module=token&action=tokenholderlist&contractaddress=${tokenAddress}&page=1&offset=10&apikey=${apiKey}`
+        );
+
+        if (response.data.status === "1") {
+            const tokenHolders = response.data.result.map((holder: any) => {
+                return `${holder.TokenHolderAddress}: ${holder.TokenHolderQuantity}`;
+            }).join("\n");
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Token holders for token ${tokenAddress} on chain ${chainId}: ${tokenHolders}`,
+                    },
+                ],
+            };
+        } else {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get token holders: ${response.data.message}`,
+                    },
+                ],
+            };
         }
+    } catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Failed to get token holders: ${error}`,
+                },
+            ],
+        };
     }
-};
+}
+
+async function handleGetTokenBalance(req: any, apiKey: string) {
+    const chainId = req.params.arguments.chain_id;
+    const tokenAddress = req.params.arguments.token_address;
+    const address = req.params.arguments.address;
+
+    try {
+        const response = await axios.get(
+            `https://api.etherscan.io/v2/api?chainid=${chainId}&module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${address}&tag=latest&apikey=${apiKey}`
+        );
+
+        if (response.data.status === "1") {
+            const balance = response.data.result;
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Balance of token ${tokenAddress} for address ${address} on chain ${chainId}: ${balance}`,
+                    },
+                ],
+            };
+        } else {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get token balance: ${response.data.message}`,
+                    },
+                ],
+            };
+        }
+    } catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Failed to get token balance: ${error}`,
+                },
+            ],
+        };
+    }
+}
+
+async function handleGetTokenHoldersCount(req: any, apiKey: string) {
+    const chainId = req.params.arguments.chain_id;
+    const tokenAddress = req.params.arguments.token_address;
+
+    try {
+        const response = await axios.get(
+            `https://api.etherscan.io/v2/api?chainid=${chainId}&module=token&action=tokenholdercount&contractaddress=${tokenAddress}&apikey=${apiKey}`
+        );
+
+        if (response.data.status === "1") {
+            const tokenHoldersCount = response.data.result;
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Number of token holders for token ${tokenAddress} on chain ${chainId}: ${tokenHoldersCount}`,
+                    },
+                ],
+            };
+        } else {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get token holders count: ${response.data.message}`,
+                    },
+                ],
+            };
+        }
+    } catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Failed to get token holders count: ${error}`,
+                },
+            ],
+        };
+    }
+}
 
 async function handleGetTotalSupply(req: any, apiKey: string) {
     const chainId = req.params.arguments.chain_id;
@@ -380,6 +471,45 @@ async function handleGetTotalSupply(req: any, apiKey: string) {
         };
     }
 }
+
+const callToolHandler: HandlerDefinition = {
+    handler: async (req: any) => {
+        const apiKey = process.env.ETHERSCAN_API_KEY
+        switch (req.params.name) {
+            case getFilteredRpcList.name:
+                return await handleGetFilteredRpcList(req);
+            case getChainId.name:
+                return await handleGetChainId(req);
+            case getTotalSupply.name:
+                return await handleGetTotalSupply(req, apiKey);
+            case getTokenBalance.name:
+                return await handleGetTokenBalance(req, apiKey);
+            case getTokenHolders.name:
+                return await handleGetTokenHolders(req, apiKey);
+            case getTokenHoldersCount.name:
+                return await handleGetTokenHoldersCount(req, apiKey);
+            default:
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Tool ${req.params.name} not found.`,
+                        },
+                    ],
+                    isError: true,
+                };
+        }
+    }
+};
+
+const server = new Server({
+    name: "etherscan-mcp",
+    version: "1.0.3"
+}, {
+    capabilities: {
+        tools: toolDefinitions,
+    }
+});
 
 server.setRequestHandler(CallToolRequestSchema, callToolHandler.handler);
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
