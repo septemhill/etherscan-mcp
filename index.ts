@@ -128,6 +128,29 @@ const getTotalSupply: ToolDefinition = {
     },
 };
 
+const getTokenBalance: ToolDefinition = {
+    name: "get_token_balance",
+    description: "Get the balance of a specific token for a specific address",
+    inputSchema: {
+        type: "object",
+        properties: {
+            chain_id: {
+                type: "integer",
+                description: "The chain ID",
+            },
+            token_address: {
+                type: "string",
+                description: "The address of the token",
+            },
+            address: {
+                type: "string",
+                description: "The address to check the balance for",
+            },
+        },
+        required: ["chain_id", "token_address", "address"],
+    },
+};
+
 const getFilteredRpcList: ToolDefinition = {
     name: "get_filtered_rpc_list",
     description: "Get a filtered list of RPC endpoints for a given chain ID",
@@ -151,11 +174,53 @@ const getFilteredRpcList: ToolDefinition = {
     }
 };
 
+async function handleGetTokenBalance(req: any, apiKey: string) {
+    const chainId = req.params.arguments.chain_id;
+    const tokenAddress = req.params.arguments.token_address;
+    const address = req.params.arguments.address;
+
+    try {
+        const response = await axios.get(
+            `https://api.etherscan.io/v2/api?chainid=${chainId}&module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${address}&tag=latest&apikey=${apiKey}`
+        );
+
+        if (response.data.status === "1") {
+            const balance = response.data.result;
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Balance of token ${tokenAddress} for address ${address} on chain ${chainId}: ${balance}`,
+                    },
+                ],
+            };
+        } else {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get token balance: ${response.data.message}`,
+                    },
+                ],
+            };
+        }
+    } catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Failed to get token balance: ${error}`,
+                },
+            ],
+        };
+    }
+}
 
 const toolDefinitions: { [key: string]: ToolDefinition } = {
     [getFilteredRpcList.name]: getFilteredRpcList,
     [getChainId.name]: getChainId,
-    [getTotalSupply.name]: getTotalSupply
+    [getTotalSupply.name]: getTotalSupply,
+    [getTokenBalance.name]: getTokenBalance
 };
 
 const server = new Server({
@@ -259,6 +324,8 @@ const callToolHandler: HandlerDefinition = {
                 return await handleGetChainId(req);
             case getTotalSupply.name:
                 return await handleGetTotalSupply(req, apiKey);
+            case getTokenBalance.name:
+                return await handleGetTokenBalance(req, apiKey);
             default:
                 return {
                     content: [
