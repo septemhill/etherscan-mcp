@@ -31,7 +31,7 @@ const logger = {
     debug: (...args: any[]) => console.error('[DEBUG]', ...args)
 };
 
-const chainIdMapping = {
+const chainIdMapping: { [key: string]: number } = {
     "Ethereum Mainnet": 1,
     "Sepolia Testnet": 11155111,
     "Holesky Testnet": 17000,
